@@ -1,22 +1,32 @@
-# BlinkPaste ⚡
+<div align="center">
+  <img src="./blinkpaste_banner.png" alt="BlinkPaste Logo" width="100%" style="border-radius: 12px; margin-bottom: 20px;" />
 
-> **Blink. Paste. Gone.**
->
-> Instant, ephemeral chat and clipboard sync across any device. No account required. Sessions expire in 60 minutes.
+  # BlinkPaste ⚡
+  
+  **Blink. Paste. Gone.**
+  
+  *Instant, ephemeral chat and clipboard sync across any device. No account required. Sessions expire in 60 minutes.*
 
-BlinkPaste is a zero-backend-server real-time message feed. Create a session with a custom key, share it with up to 30 devices, and start messaging — everything syncs instantly via Supabase Realtime. Sessions and messages self-destruct after exactly 60 minutes. No recovery. By design.
+  [![Deploy with Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://blinkpaste.vercel.app)
+  [![Database: Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+  [![React](https://img.shields.io/badge/Frontend-React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](#)
+  [![Vite](https://img.shields.io/badge/Bundler-Vite_7-646CFF?style=for-the-badge&logo=vite&logoColor=white)](#)
+</div>
 
 ---
 
-## 🚀 Tech Stack
+BlinkPaste is a serverless, ultra-fast, zero-persistence real-time clipboard sharing and messaging utility. Create a session with a custom passcode, connect up to 30 devices simultaneously, and instantly broadcast messages and clipboard snippets using Supabase Realtime. By design, everything self-destructs after exactly 60 minutes.
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18 + Vite + Tailwind CSS v3 |
-| **Realtime** | Supabase Realtime (`postgres_changes` + Presence) |
-| **Database** | Supabase Postgres |
-| **Expiry** | Supabase Edge Function (Deno) |
-| **Deployment** | Vercel (frontend) + Supabase (backend) |
+---
+
+### ✨ Features
+
+* **⚡ Instant Sync** — Under 100ms latency powered by Supabase Postgres changes and Presence broadcast.
+* **🕒 Ephemeral by Design** — True 60-minute session lifetime. A cron job automatically purges expired records; no recovery, no traces.
+* **👥 Multi-Device Connect** — Real-time counter showing active devices in the current session.
+* **📋 Smart Clipboard Copy** — Seamless copy button with micro-animations and green indicator feedback.
+* **🛡️ Secure & Private** — Zero user authentication needed. Shared clipboard sessions are protected by a secret key with zero long-term retention.
+* **💫 Sleek UI/UX** — Premium dark mode theme with glassmorphism cards, ambient glows, and fluid animations.
 
 ---
 
@@ -38,7 +48,8 @@ Supabase Edge Function (Deno)
        └─ Deletes expired rows from sessions table (messages cascade delete)
 ```
 
-**On server restart:** All active sessions are cleared — this is intentional and by design. BlinkPaste has zero persistence.
+> [!IMPORTANT]
+> **On server restart:** All active sessions are cleared — this is intentional and by design. BlinkPaste has zero persistence.
 
 ---
 
@@ -50,14 +61,13 @@ Supabase Edge Function (Deno)
 
 ### 1. Supabase Setup
 
-1. Go to [supabase.com](https://supabase.com) → **New Project** (free, no credit card)
+1. Go to [supabase.com](https://supabase.com) → **New Project** (free, no credit card required)
 
 2. In the SQL Editor, run the migrations in order:
-   ```text
-   supabase/migrations/001_create_sessions.sql
-   supabase/migrations/002_create_messages.sql
-   ```
-   *Note: When running `002_create_messages.sql`, Supabase will show a warning about creating a table without RLS. Click **Run without RLS**.*
+   - [001_create_sessions.sql](file:///supabase/migrations/001_create_sessions.sql)
+   - [002_create_messages.sql](file:///supabase/migrations/002_create_messages.sql)
+   
+   *Note: When running the messages migration, Supabase will show a warning about creating a table without RLS. Click **Run without RLS**.*
 
 3. Enable Realtime on the `sessions` and `messages` tables:
    - Dashboard → **Database → Replication**
@@ -91,17 +101,15 @@ npm run dev
 App runs at **http://localhost:5173**
 
 ### 4. Cross-Device Testing (Same Wi-Fi)
-
 Find your local IP (`ipconfig` on Windows, `ifconfig | grep inet` on macOS/Linux), then open `http://192.168.x.x:5173` on any device on the same network.
 
 ---
 
 ## 🕒 Supabase Edge Function Setup
 
-The Edge Function deletes expired sessions every 5 minutes. (Messages are automatically deleted via an `ON DELETE CASCADE` constraint). 
+The Edge Function deletes expired sessions every 5 minutes (Messages are automatically deleted via an `ON DELETE CASCADE` constraint). 
 
 ### Option A — Supabase Dashboard Cron (Recommended — free)
-
 1. Deploy the function:
    ```bash
    supabase functions deploy delete-expired-sessions
@@ -110,20 +118,20 @@ The Edge Function deletes expired sessions every 5 minutes. (Messages are automa
 3. Add schedule: `*/5 * * * *` (every 5 minutes)
 
 ### Option B — External Cron (Free)
-
 Use [cron-job.org](https://cron-job.org):
 - URL: `POST https://your-project-ref.supabase.co/functions/v1/delete-expired-sessions`
 - Header: `Authorization: Bearer YOUR_SERVICE_ROLE_KEY`
 - Schedule: every 5 minutes
 
-> **Note:** Without the Edge Function running, sessions will accumulate in the database indefinitely. For production use, set up at least Option B.
+> [!NOTE]
+> Without the Edge Function running, sessions will accumulate in the database indefinitely. For production use, set up at least one cron method.
 
 ---
 
 ## 🌐 Vercel Deployment
 
-1. Push the `client/` directory to a GitHub repository
-2. Go to [vercel.com](https://vercel.com) → **New Project** → Import your repo
+1. Push the `client/` directory to a GitHub repository.
+2. Go to [vercel.com](https://vercel.com) → **New Project** → Import your repo.
 3. Configure:
    - **Framework Preset**: Vite
    - **Root Directory**: `client`
