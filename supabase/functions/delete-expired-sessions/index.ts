@@ -1,46 +1,13 @@
+// @ts-nocheck
 /**
- * BlinkPaste — delete-expired-sessions Edge Function
+ * BlinkPaste v2.0 — delete-expired-sessions Edge Function
  *
- * Deletes all sessions where expires_at < NOW().
- * Before deletion, broadcasts "session_expired" to each session's
- * Realtime channel via the Supabase HTTP Broadcast API so connected
- * clients show the expired modal immediately.
+ * Deletes all sessions where expires_at < NOW() from the sessions_v2 table.
+ * Thanks to ON DELETE CASCADE on the foreign keys, this automatically deletes
+ * all associated clipboard items, messages, files, secrets, devices, and security events.
  *
- * Deployment:
- *   supabase functions deploy delete-expired-sessions
- *
- * Schedule (two options — choose one):
- *
- *   OPTION A — Supabase Dashboard Cron (recommended, no extensions needed):
- *     Dashboard → Edge Functions → delete-expired-sessions → Schedules → Add
- *     Cron: */5 * * * *   (every 5 minutes)
- *
- *   OPTION B — pg_cron + pg_net (requires paid plan):
- *     Run in Supabase SQL Editor:
- *
- *     CREATE EXTENSION IF NOT EXISTS pg_cron;
- *     CREATE EXTENSION IF NOT EXISTS pg_net;
- *
- *     SELECT cron.schedule(
- *       'delete-expired-sessions',
- *       '*/5 * * * *',
- *       $$
- *       SELECT net.http_post(
- *         url     := 'https://<project-ref>.supabase.co/functions/v1/delete-expired-sessions',
- *         headers := jsonb_build_object(
- *           'Content-Type',  'application/json',
- *           'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
- *         ),
- *         body    := '{}'::jsonb
- *       );
- *       $$
- *     );
- *
- *   OPTION C — External cron (free, no Supabase config needed):
- *     Use cron-job.org or similar.
- *     Endpoint: POST https://<project-ref>.supabase.co/functions/v1/delete-expired-sessions
- *     Header: Authorization: Bearer <SERVICE_ROLE_KEY>
- *     Schedule: every 5 minutes
+ * It broadcasts a "session_expired" event before deletion so connected clients
+ * show the expired modal immediately.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -48,8 +15,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-Deno.serve(async (_req) => {
-  // Admin client — bypasses RLS to delete any session
+Deno.serve(async (_req: Request) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       autoRefreshToken: false,
@@ -59,32 +25,24 @@ Deno.serve(async (_req) => {
 
   const now = new Date().toISOString()
 
-  // 1. Find all expired sessions BEFORE deleting (we need their passwords to broadcast)
+  // 1. Find expired sessions in sessions_v2
   const { data: expiredSessions, error: fetchError } = await supabase
-    .from('sessions')
-    .select('password')
+    .from('sessions_v2')
+    .select('session_id')
     .lt('expires_at', now)
 
   if (fetchError) {
     console.error('[BlinkPaste] Failed to fetch expired sessions:', fetchError.message)
-    return new Response(
-      JSON.stringify({ error: fetchError.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
+    return new Response(JSON.stringify({ error: fetchError.message }), { status: 500 })
   }
 
   if (!expiredSessions || expiredSessions.length === 0) {
-    return new Response(
-      JSON.stringify({ ok: true, deleted: 0 }),
-      { headers: { 'Content-Type': 'application/json' } }
-    )
+    return new Response(JSON.stringify({ ok: true, deleted: 0 }))
   }
 
-  // 2. Broadcast "session_expired" to each session's Realtime channel
-  //    via the Supabase Realtime HTTP Broadcast API.
-  //    Clients subscribed to these channels will immediately show the expired modal.
-  const broadcastMessages = expiredSessions.map((s) => ({
-    topic: `realtime:${s.password}`,   // channel name as set in Session.jsx
+  // 2. Broadcast expiration via Supabase Realtime
+  const broadcastMessages = expiredSessions.map((s: { session_id: string }) => ({
+    topic: `realtime:${s.session_id}`, // Using session_id instead of password for v2
     event: 'broadcast',
     payload: {
       type: 'broadcast',
@@ -103,31 +61,21 @@ Deno.serve(async (_req) => {
       },
       body: JSON.stringify({ messages: broadcastMessages }),
     })
-  } catch (broadcastErr) {
-    // Broadcast failure is non-fatal — clients will detect expiry via
-    // postgres_changes DELETE event and the local countdown timer.
-    console.warn('[BlinkPaste] Broadcast to expired channels failed:', broadcastErr)
+  } catch (err) {
+    console.warn('[BlinkPaste] Broadcast failed:', err)
   }
 
-  // 3. Delete expired sessions from the database
-  //    The postgres_changes DELETE event will also notify any subscribed clients.
+  // 3. Delete from sessions_v2 (cascades to all other v2 tables)
   const { error: deleteError } = await supabase
-    .from('sessions')
+    .from('sessions_v2')
     .delete()
     .lt('expires_at', now)
 
   if (deleteError) {
-    console.error('[BlinkPaste] Failed to delete expired sessions:', deleteError.message)
-    return new Response(
-      JSON.stringify({ error: deleteError.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
+    console.error('[BlinkPaste] Failed to delete sessions:', deleteError.message)
+    return new Response(JSON.stringify({ error: deleteError.message }), { status: 500 })
   }
 
-  console.log(`[BlinkPaste] Deleted ${expiredSessions.length} expired session(s).`)
-
-  return new Response(
-    JSON.stringify({ ok: true, deleted: expiredSessions.length }),
-    { headers: { 'Content-Type': 'application/json' } }
-  )
+  console.log(`[BlinkPaste] Deleted ${expiredSessions.length} expired v2 session(s).`)
+  return new Response(JSON.stringify({ ok: true, deleted: expiredSessions.length }))
 })

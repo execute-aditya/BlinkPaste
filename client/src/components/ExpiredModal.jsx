@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { TimerOff } from 'lucide-react'
 
 /**
  * ExpiredModal — Full-screen backdrop blur overlay shown when a session expires.
@@ -34,7 +35,6 @@ export default function ExpiredModal() {
           border: '1px solid rgba(255,255,255,0.1)',
         }}
       >
-        {/* Icon: hourglass / timer done */}
         <div
           style={{
             width: '56px',
@@ -48,25 +48,9 @@ export default function ExpiredModal() {
             margin: '0 auto 1.5rem',
           }}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              stroke="#FF4F6A"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M12 7v5l3 3"
-              stroke="#FF4F6A"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <TimerOff size={24} className="text-error" />
         </div>
 
-        {/* Title */}
         <h2
           style={{
             fontFamily: "'Space Grotesk', sans-serif",
@@ -76,10 +60,9 @@ export default function ExpiredModal() {
             marginBottom: '0.75rem',
           }}
         >
-          Session Ended
+          Session Expired
         </h2>
 
-        {/* Body */}
         <p
           style={{
             fontFamily: 'Inter',
@@ -89,16 +72,14 @@ export default function ExpiredModal() {
             marginBottom: '2rem',
           }}
         >
-          This session has expired. All shared text has been permanently deleted.
+          The session has expired. Application-controlled session data (clipboard, messages, files, and secrets) has been permanently removed.
         </p>
 
-        {/* CTA */}
         <button
-          id="expired-new-session-btn"
           className="btn-primary"
           onClick={() => navigate('/')}
         >
-          Start a New Session
+          Create New Session
         </button>
       </div>
     </div>
